@@ -4,6 +4,7 @@ The AI backend for the Zebra coding platform, providing intelligent task distrib
 
 ## Features
 
+- Interactive project requirements gathering
 - Smart task distribution based on team members' technical expertise
 - Technical architecture analysis and planning
 - Risk assessment and mitigation strategies
@@ -30,6 +31,45 @@ npm run dev
 
 ## API Endpoints
 
+### POST /api/ai/analyze-requirements
+Analyzes project requirements and provides follow-up questions for unclear aspects.
+
+#### Request Body
+```json
+{
+  "projectDescription": "string",
+  "context": {
+    "previousQuestions": [
+      {
+        "question": "string",
+        "answer": "string"
+      }
+    ]
+  }
+}
+```
+
+#### Response
+```json
+{
+  "success": true,
+  "analysis": {
+    "understanding": {
+      "clear": ["string"],
+      "unclear": ["string"]
+    },
+    "nextQuestions": [
+      {
+        "question": "string",
+        "context": "string",
+        "importance": "string"
+      }
+    ],
+    "recommendations": ["string"]
+  }
+}
+```
+
 ### POST /api/ai/distribute-task
 Analyzes tasks and creates optimal distribution plans based on team members' technical expertise.
 
@@ -38,6 +78,11 @@ Analyzes tasks and creates optimal distribution plans based on team members' tec
 {
   "taskName": "string",
   "taskDescription": "string",
+  "projectContext": {
+    "objectives": ["string"],
+    "constraints": ["string"],
+    "technicalRequirements": ["string"]
+  },
   "teamMembers": [
     {
       "id": "string",
@@ -53,9 +98,27 @@ Analyzes tasks and creates optimal distribution plans based on team members' tec
 ```
 
 #### Response
+If more information is needed:
 ```json
 {
   "success": true,
+  "status": "NEEDS_INFO",
+  "questions": [
+    {
+      "question": "string",
+      "context": "string",
+      "importance": "string"
+    }
+  ],
+  "missingAreas": ["string"]
+}
+```
+
+If ready to distribute:
+```json
+{
+  "success": true,
+  "status": "COMPLETE",
   "distribution": {
     "taskName": "string",
     "technicalOverview": {
@@ -108,22 +171,40 @@ Analyzes tasks and creates optimal distribution plans based on team members' tec
 }
 ```
 
-### POST /api/ai/analyze-task
-Analyzes and breaks down coding tasks into manageable subtasks.
-
-### POST /api/ai/review-code
-Reviews code and provides suggestions for improvements.
-
 ## Example Usage
 
-Here's an example of how to use the task distribution API:
+1. First, analyze project requirements:
+```bash
+curl -X POST http://localhost:5793/api/ai/analyze-requirements \
+-H "Content-Type: application/json" \
+-d '{
+  "projectDescription": "We need to build a user authentication system",
+  "context": {}
+}'
+```
 
+2. After getting more details, distribute the task:
 ```bash
 curl -X POST http://localhost:5793/api/ai/distribute-task \
 -H "Content-Type: application/json" \
 -d '{
   "taskName": "Implement OAuth Authentication",
   "taskDescription": "Create a secure OAuth 2.0 authentication system with support for multiple providers (Google, GitHub) and JWT token management",
+  "projectContext": {
+    "objectives": [
+      "Support both social and email authentication",
+      "Ensure GDPR compliance",
+      "Handle high traffic load"
+    ],
+    "constraints": [
+      "Must be completed within 2 weeks",
+      "Must use existing database infrastructure"
+    ],
+    "technicalRequirements": [
+      "99.9% uptime required",
+      "Maximum 500ms response time"
+    ]
+  },
   "teamMembers": [
     {
       "id": "dev1",
@@ -141,15 +222,6 @@ curl -X POST http://localhost:5793/api/ai/distribute-task \
       "technicalSkills": ["React", "TypeScript", "UI/UX"],
       "experienceLevel": "mid",
       "preferredTechnologies": ["Next.js", "Tailwind CSS"],
-      "currentWorkload": "low"
-    },
-    {
-      "id": "dev3",
-      "name": "Charlie Wong",
-      "role": "DevOps Engineer",
-      "technicalSkills": ["Docker", "CI/CD", "Cloud Infrastructure"],
-      "experienceLevel": "senior",
-      "preferredTechnologies": ["AWS", "GitHub Actions"],
       "currentWorkload": "low"
     }
   ]

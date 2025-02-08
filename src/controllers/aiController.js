@@ -5,14 +5,121 @@ const openai = new OpenAI({
   baseURL: process.env.OPENAI_BASE_URL,
 });
 
+exports.analyzeProjectRequirements = async (req, res, next) => {
+  try {
+    const { projectDescription, context = {} } = req.body;
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: `You are an expert technical project manager and business analyst who helps gather detailed project requirements. 
+Your goal is to ask essential questions about unclear aspects of the project to ensure proper planning.
+Focus on:
+1. Technical requirements and constraints
+2. Business objectives and success metrics
+3. User experience expectations
+4. Integration requirements
+5. Security and compliance needs
+6. Performance requirements
+7. Timeline and budget constraints
+
+Please provide your response in JSON format with the following structure:
+{
+  "understanding": {
+    "clear": ["list of clear aspects"],
+    "unclear": ["list of unclear aspects"]
+  },
+  "nextQuestions": [
+    {
+      "question": "specific question",
+      "context": "why this is important",
+      "importance": "high/medium/low"
+    }
+  ],
+  "recommendations": ["list of recommendations"]
+}`
+        },
+        {
+          role: "user",
+          content: `Initial Project Description: ${projectDescription}
+${context.previousQuestions ? `\nPrevious Q&A:\n${JSON.stringify(context.previousQuestions, null, 2)}` : ''}
+
+Please analyze this project description and provide your response in JSON format.`
+        }
+      ],
+      response_format: { type: "json_object" }
+    });
+
+    const analysis = JSON.parse(completion.choices[0].message.content);
+    res.json({
+      success: true,
+      analysis: {
+        ...analysis,
+        nextQuestions: analysis.nextQuestions || []
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 exports.distributeTask = async (req, res, next) => {
   try {
     const { 
       taskName, 
       taskDescription, 
-      teamMembers 
+      teamMembers,
+      projectContext = {} 
     } = req.body;
 
+    // First, analyze if we have enough information
+    const requirementsCheck = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: `You are a technical requirements analyst. Your job is to identify missing or unclear information in project tasks that could impact successful implementation.
+
+Please provide your response in JSON format with the following structure:
+{
+  "needsMoreInfo": boolean,
+  "questions": [
+    {
+      "question": "string",
+      "context": "string",
+      "importance": "string"
+    }
+  ],
+  "missingAreas": ["string"]
+}`
+        },
+        {
+          role: "user",
+          content: `Task Name: ${taskName}
+Task Description: ${taskDescription}
+Project Context: ${JSON.stringify(projectContext, null, 2)}
+
+Please analyze if there's enough information to proceed with task distribution and provide your response in JSON format.`
+        }
+      ],
+      response_format: { type: "json_object" }
+    });
+
+    const checkResult = JSON.parse(requirementsCheck.choices[0].message.content);
+    
+    // If missing critical information, return questions
+    if (checkResult.needsMoreInfo) {
+      return res.json({
+        success: true,
+        status: "NEEDS_INFO",
+        questions: checkResult.questions,
+        missingAreas: checkResult.missingAreas
+      });
+    }
+
+    // If we have enough information, proceed with task distribution
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
@@ -23,26 +130,9 @@ exports.distributeTask = async (req, res, next) => {
 2. Understanding team members' technical strengths and matching them with appropriate tasks
 3. Identifying technical dependencies and creating efficient workflows
 4. Estimating task complexity and time requirements
-5. Balancing workload across team members based on their expertise level`
-        },
-        {
-          role: "user",
-          content: `Please analyze this task and create an optimal distribution plan based on team members' skills:
+5. Balancing workload across team members based on their expertise level
 
-Task Name: ${taskName}
-Task Description: ${taskDescription}
-
-Team Members:
-${JSON.stringify(teamMembers, null, 2)}
-
-Provide a detailed distribution plan in JSON format that includes:
-1. Overall technical architecture and stack requirements
-2. Task breakdown with technical specifications
-3. Team member assignments based on their expertise
-4. Dependencies and workflow
-5. Risk assessment and mitigation strategies
-
-Use this JSON structure:
+Please provide your response in JSON format with the following structure:
 {
   "taskName": "string",
   "technicalOverview": {
@@ -92,6 +182,19 @@ Use this JSON structure:
     "codeReviewStrategy": "string"
   }
 }`
+        },
+        {
+          role: "user",
+          content: `Please analyze this task and create an optimal distribution plan based on team members' skills:
+
+Task Name: ${taskName}
+Task Description: ${taskDescription}
+Project Context: ${JSON.stringify(projectContext, null, 2)}
+
+Team Members:
+${JSON.stringify(teamMembers, null, 2)}
+
+Please provide your task distribution plan in JSON format.`
         }
       ],
       response_format: { type: "json_object" }
@@ -100,6 +203,7 @@ Use this JSON structure:
     const taskDistribution = JSON.parse(completion.choices[0].message.content);
     res.json({
       success: true,
+      status: "COMPLETE",
       distribution: taskDistribution
     });
   } catch (error) {
