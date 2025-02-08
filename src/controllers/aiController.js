@@ -7,30 +7,91 @@ const openai = new OpenAI({
 
 exports.distributeTask = async (req, res, next) => {
   try {
-    const { taskName, taskDescription, numberOfPeople } = req.body;
+    const { 
+      taskName, 
+      taskDescription, 
+      teamMembers 
+    } = req.body;
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
-          content: "You are an expert project manager who helps distribute tasks among team members effectively. You should provide a detailed breakdown of tasks and responsibilities in JSON format."
+          content: `You are an expert technical project manager who specializes in:
+1. Analyzing technical requirements and breaking them down into specific tasks
+2. Understanding team members' technical strengths and matching them with appropriate tasks
+3. Identifying technical dependencies and creating efficient workflows
+4. Estimating task complexity and time requirements
+5. Balancing workload across team members based on their expertise level`
         },
         {
           role: "user",
-          content: `Please analyze this task and distribute it among ${numberOfPeople} people:\nTask Name: ${taskName}\nTask Description: ${taskDescription}\n\nProvide the distribution in JSON format with the following structure:\n{
-            "taskName": "string",
-            "totalPeople": number,
-            "distribution": [
-              {
-                "roleNumber": number,
-                "responsibilities": ["string"],
-                "estimatedWorkload": "string",
-                "skillsRequired": ["string"],
-                "dependencies": ["string"]
-              }
-            ]
-          }`
+          content: `Please analyze this task and create an optimal distribution plan based on team members' skills:
+
+Task Name: ${taskName}
+Task Description: ${taskDescription}
+
+Team Members:
+${JSON.stringify(teamMembers, null, 2)}
+
+Provide a detailed distribution plan in JSON format that includes:
+1. Overall technical architecture and stack requirements
+2. Task breakdown with technical specifications
+3. Team member assignments based on their expertise
+4. Dependencies and workflow
+5. Risk assessment and mitigation strategies
+
+Use this JSON structure:
+{
+  "taskName": "string",
+  "technicalOverview": {
+    "architecture": ["string"],
+    "requiredTechnologies": ["string"],
+    "systemComponents": ["string"]
+  },
+  "taskBreakdown": [
+    {
+      "subtaskId": "string",
+      "title": "string",
+      "technicalDetails": {
+        "stack": ["string"],
+        "specifications": ["string"],
+        "complexity": "string"
+      },
+      "assignedTo": {
+        "memberId": "string",
+        "memberName": "string",
+        "assignmentReason": "string"
+      },
+      "estimatedHours": number,
+      "dependencies": ["string"],
+      "deliverables": ["string"],
+      "risks": [
+        {
+          "description": "string",
+          "mitigation": "string",
+          "impact": "string"
+        }
+      ]
+    }
+  ],
+  "timeline": {
+    "estimatedDuration": "string",
+    "milestones": [
+      {
+        "name": "string",
+        "date": "string",
+        "deliverables": ["string"]
+      }
+    ]
+  },
+  "recommendations": {
+    "technicalConsiderations": ["string"],
+    "collaborationPoints": ["string"],
+    "codeReviewStrategy": "string"
+  }
+}`
         }
       ],
       response_format: { type: "json_object" }
